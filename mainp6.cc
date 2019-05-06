@@ -74,6 +74,8 @@
 #include "ns3/ipv4-static-routing-helper.h"
 #include "ns3/ipv4-list-routing-helper.h"
 #include "ns3/netanim-module.h"
+#include "ns3/rng-seed-manager.h"
+#include "ns3/random-variable-stream.h"
 
 
 using namespace ns3;
@@ -129,7 +131,25 @@ int main (int argc, char *argv[])
   int nodeSpeed = 20;
   int nodePause = 0;
   uint32_t step =100;
+  unsigned int seed = 1234;
+  unsigned int run = 2;
+  RngSeedManager::SetSeed(seed);
+  RngSeedManager::SetRun(run);
+  uint64_t seednr = RngSeedManager::GetSeed();
+  uint32_t runnr = RngSeedManager::GetRun();
   
+  double min = 0.0;
+  double max = 10.0;
+  Ptr<UniformRandomVariable> x = CreateObject<UniformRandomVariable> ();
+  x->SetAttribute ("Min", DoubleValue (min));
+  x->SetAttribute ("Max", DoubleValue (max));
+  // The values returned by a uniformly distributed random
+  // variable should always be within the range
+  //
+  //     [min, max)  .
+  //
+  double randgen = x->GetValue ();
+  double randgen2 = x->GetValue ();
   
   /*Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Mode", StringValue ("Time"));
   Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Time", StringValue ("2s"));
@@ -155,6 +175,11 @@ int main (int argc, char *argv[])
   Config::SetDefault ("ns3::WifiRemoteStationManager::NonUnicastMode",
                       StringValue (phyMode));
 
+  NS_LOG_UNCOND ("Seed: " << seednr );
+  NS_LOG_UNCOND ("Run: " << runnr );
+  NS_LOG_UNCOND ("random num: " << randgen );
+  NS_LOG_UNCOND ("random num: " << randgen2 );
+  
   NodeContainer c;
   c.Create (numNodes);
   NodeContainer GW;
