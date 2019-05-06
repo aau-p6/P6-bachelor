@@ -75,6 +75,7 @@
 #include "ns3/ipv4-list-routing-helper.h"
 #include "ns3/netanim-module.h"
 #include "ns3/rng-seed-manager.h"
+#include "adhoc-mobility-model.h"
 #include "ns3/random-variable-stream.h"
 
 
@@ -115,6 +116,8 @@ static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
     }
 }
 
+
+
 int main (int argc, char *argv[])
 {
   std::string phyMode ("DsssRate1Mbps");
@@ -123,14 +126,14 @@ int main (int argc, char *argv[])
   uint32_t numPackets = 10;
   uint32_t sinkNode = 5;
   uint32_t sourceNode = 0;
-  uint32_t numNodes = 15;
+  uint32_t numNodes = 20;
   uint32_t numGW = 1;
   double interval = 1.0; // seconds
   bool verbose = false;
   bool tracing = true;
-  int nodeSpeed = 20;
-  int nodePause = 0;
-  uint32_t step =100;
+  //int nodeSpeed = 20;
+  //int nodePause = 0;
+  //uint32_t step =100;
   unsigned int seed = 1234;
   unsigned int run = 2;
   RngSeedManager::SetSeed(seed);
@@ -221,9 +224,9 @@ int main (int argc, char *argv[])
 
   // Note that with FixedRssLossModel, the positions below are not
   // used for received signal strength.
-  MobilityHelper mobility;
+  /*MobilityHelper mobility;
   int64_t streamIndex = 0;
-/*  mobility.SetPositionAllocator ("ns3::RandomDiscPositionAllocator",
+  mobility.SetPositionAllocator ("ns3::RandomDiscPositionAllocator",
                                  "X", StringValue ("100.0"),
                                  "Y", StringValue ("100.0"),
                                  "Rho", StringValue ("ns3::UniformRandomVariable[Min=0|Max=100]"));
@@ -232,12 +235,12 @@ int main (int argc, char *argv[])
                              "Time", StringValue ("5s"),
                              "Speed", StringValue ("ns3::ConstantRandomVariable[Constant=1.0]"),
                              "Bounds", StringValue ("0|200|0|200"));
-  mobility.InstallAll ();
-  */
+  mobility.InstallAll ();*/
+  
   //Config::Connect ("/NodeList/*/$ns3::MobilityModel/CourseChange",
   //                 MakeCallback (&CourseChange));
 
-  ObjectFactory pos;
+  /*ObjectFactory pos;
   pos.SetTypeId ("ns3::RandomRectanglePositionAllocator");
   pos.Set ("X", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=1500.0]"));
   pos.Set ("Y", StringValue ("ns3::UniformRandomVariable[Min=0.0|Max=1500.0]"));
@@ -267,9 +270,10 @@ int main (int argc, char *argv[])
                                  "GridWidth", UintegerValue (numGW),
                                  "LayoutType", StringValue ("RowFirst"));
   GWmobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
-  GWmobility.Install (GW);
-  
-  
+  GWmobility.Install (GW);*/
+  setupMobilityModel model;
+  model.installModel(c, GW, seed, run);
+
   OlsrHelper olsr;
   //AodvHelper olsr;
   //Ipv4StaticRoutingHelper staticRouting;
@@ -281,6 +285,7 @@ int main (int argc, char *argv[])
   InternetStackHelper internet;
   internet.SetRoutingHelper (list); // has effect on the next Install ()
   internet.Install (cGW);
+  olsr.AssignStreams(cGW, 5);
 
   Ipv4AddressHelper ipv4;
   NS_LOG_INFO ("Assign IP Addresses.");
@@ -303,7 +308,7 @@ int main (int argc, char *argv[])
     {
       AsciiTraceHelper ascii;
       wifiPhy.EnableAsciiAll (ascii.CreateFileStream ("wifi-simple-adhoc-grid.tr"));
-      wifiPhy.EnablePcap ("wifi-simple-adhoc-grid", devices);
+      wifiPhy.EnablePcap ("TestFolder/wifi-simple-adhoc-grid", devices);
       // Trace routing tables
       Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("wifi-simple-adhoc-grid.routes", std::ios::out);
       olsr.PrintRoutingTableAllEvery (Seconds (2), routingStream);
@@ -334,4 +339,5 @@ int main (int argc, char *argv[])
   Simulator::Destroy ();
 
   return 0;
+  
 }
