@@ -76,6 +76,7 @@
 #include "ns3/netanim-module.h"
 #include "ns3/rng-seed-manager.h"
 #include "adhoc-mobility-model.h"
+#include "ns3/random-variable-stream.h"
 
 
 using namespace ns3;
@@ -140,6 +141,19 @@ int main (int argc, char *argv[])
   uint64_t seednr = RngSeedManager::GetSeed();
   uint32_t runnr = RngSeedManager::GetRun();
   
+  double min = 0.0;
+  double max = 10.0;
+  Ptr<UniformRandomVariable> x = CreateObject<UniformRandomVariable> ();
+  x->SetAttribute ("Min", DoubleValue (min));
+  x->SetAttribute ("Max", DoubleValue (max));
+  // The values returned by a uniformly distributed random
+  // variable should always be within the range
+  //
+  //     [min, max)  .
+  //
+  double randgen = x->GetValue ();
+  double randgen2 = x->GetValue ();
+  
   /*Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Mode", StringValue ("Time"));
   Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Time", StringValue ("2s"));
   Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Speed", StringValue ("ns3::ConstantRandomVariable[Constant=1.0]"));
@@ -166,7 +180,9 @@ int main (int argc, char *argv[])
 
   NS_LOG_UNCOND ("Seed: " << seednr );
   NS_LOG_UNCOND ("Run: " << runnr );
-
+  NS_LOG_UNCOND ("random num: " << randgen );
+  NS_LOG_UNCOND ("random num: " << randgen2 );
+  
   NodeContainer c;
   c.Create (numNodes);
   NodeContainer GW;
