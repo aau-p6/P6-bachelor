@@ -76,6 +76,7 @@
 #include "ns3/netanim-module.h"
 #include "ns3/rng-seed-manager.h"
 #include "ns3/random-variable-stream.h"
+#include "ns3/rng-seed-manager.h"
 
 
 using namespace ns3;
@@ -117,6 +118,14 @@ static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
 
 int main (int argc, char *argv[])
 {
+  uint32_t run_number = 1;
+
+  CommandLine cmd;
+  cmd.AddValue("run_number", "The simulation run number", run_number);
+  cmd.Parse (argc, argv);
+
+  RngSeedManager::SetSeed(42);
+  RngSeedManager::SetRun(run_number);
   std::string phyMode ("DsssRate1Mbps");
   //double rss = -90;  // -dBm
   uint32_t packetSize = 1000; // bytes
