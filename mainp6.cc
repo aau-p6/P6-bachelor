@@ -52,6 +52,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <string>
 #include "ns3/command-line.h"
 #include "ns3/config.h"
 #include "ns3/double.h"
@@ -67,6 +68,7 @@
 #include "ns3/aodv-module.h"
 #include "ns3/olsr-module.h"
 #include "ns3/dsdv-module.h"
+#include "ns3/dsr-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/pointer.h"
 #include "ns3/olsr-helper.h"
@@ -122,6 +124,7 @@ int main (int argc, char *argv[])
 {
   std::string phyMode ("DsssRate1Mbps");
   //double rss = -90;  // -dBm
+  const std::string protocol = "olsr";
   uint32_t packetSize = 1000; // bytes
   uint32_t numPackets = 10;
   uint32_t sinkNode = 5;
@@ -275,17 +278,45 @@ int main (int argc, char *argv[])
   model.installModel(c, GW, seed, run);
 
   OlsrHelper olsr;
-  //AodvHelper olsr;
-  //Ipv4StaticRoutingHelper staticRouting;
-  
+  AodvHelper aodv;
+  DsdvHelper dsdv;
+  DsrHelper dsr;
+  DsrMainHelper dsrMain;
   Ipv4ListRoutingHelper list;
-  //list.Add (staticRouting, 0);
-  list.Add (olsr, 10);
-                  
   InternetStackHelper internet;
-  internet.SetRoutingHelper (list); // has effect on the next Install ()
-  internet.Install (cGW);
-  olsr.AssignStreams(cGW, 5);
+  
+  if (protocol == "dsr")
+  {
+    internet.Install (cGW);
+    dsrMain.Install (dsr, cGW);
+  }
+  else if (protocol == "aodv")
+  {
+    list.Add (aodv, 10);
+    internet.SetRoutingHelper (list);
+    internet.Install (cGW);
+    olsr.AssignStreams(cGW, 5);
+  }
+  else if (protocol == "olsr")
+  {
+    list.Add (aodv, 10);
+    internet.SetRoutingHelper (list);
+    internet.Install (cGW);
+    aodv.AssignStreams(cGW, 5);
+  }
+  else if (protocol == "dsdv")
+  {
+    list.Add (aodv, 10);
+    internet.SetRoutingHelper (list);
+    internet.Install (cGW);
+    //dsdv.AssignStreams(cGW, 5);
+  }
+  else
+  {
+    NS_FATAL_ERROR ("No such protocol:" << protocol);
+  }
+  //olsr.AssignStreams(cGW, 5);
+
 
   Ipv4AddressHelper ipv4;
   NS_LOG_INFO ("Assign IP Addresses.");
