@@ -77,6 +77,7 @@
 #include "ns3/rng-seed-manager.h"
 #include "ns3/random-variable-stream.h"
 #include "ns3/rng-seed-manager.h"
+#include "ns3/flow-monitor-helper.h"
 
 
 using namespace ns3;
@@ -330,9 +331,14 @@ int main (int argc, char *argv[])
                                   source, packetSize, numPackets, interPacketInterval);
   AnimationInterface anim ("adhocTest.xml"); // where "animation.xml" is any arbitrary
   
+  Ptr<FlowMonitor> flowMonitor;
+  FlowMonitorHelper flowHelper;
+  flowMonitor = flowHelper.InstallAll();
+
   Simulator::Stop (Seconds (60.0));
 
   Simulator::Run ();
+  flowMonitor->SerializeToXmlFile("flowmonitor.xml", true, true);
   Simulator::Destroy ();
 
   return 0;
