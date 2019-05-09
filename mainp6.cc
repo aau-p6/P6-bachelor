@@ -118,14 +118,6 @@ static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
 
 int main (int argc, char *argv[])
 {
-  uint32_t run_number = 1;
-
-  CommandLine cmd;
-  cmd.AddValue("run_number", "The simulation run number", run_number);
-  cmd.Parse (argc, argv);
-
-  RngSeedManager::SetSeed(42);
-  RngSeedManager::SetRun(run_number);
   std::string phyMode ("DsssRate1Mbps");
   //double rss = -90;  // -dBm
   uint32_t packetSize = 1000; // bytes
@@ -141,11 +133,23 @@ int main (int argc, char *argv[])
   int nodePause = 0;
   uint32_t step =100;
   unsigned int seed = 1234;
-  unsigned int run = 2;
+  unsigned int runNumber = 2;
+
+  CommandLine cmd;
+  cmd.AddValue ("phyMode", "Wifi Phy mode", phyMode);
+  //cmd.AddValue ("rss", "received signal strength", rss);
+  cmd.AddValue ("packetSize", "size of application packet sent", packetSize);
+  cmd.AddValue ("numPackets", "number of packets generated", numPackets);
+  cmd.AddValue ("interval", "interval (seconds) between packets", interval);
+  cmd.AddValue ("verbose", "turn on all WifiNetDevice log components", verbose);
+  cmd.AddValue ("numNodes", "number of nodes", numNodes);
+  cmd.AddValue ("sinkNode", "Receiver node number", sinkNode);
+  cmd.AddValue ("sourceNode", "Sender node number", sourceNode);
+  cmd.AddValue ("runNumber", "Set the run number", runNumber);
+  cmd.Parse (argc, argv);
+
   RngSeedManager::SetSeed(seed);
-  RngSeedManager::SetRun(run);
-  uint64_t seednr = RngSeedManager::GetSeed();
-  uint32_t runnr = RngSeedManager::GetRun();
+  RngSeedManager::SetRun(runNumber);
   
   double min = 0.0;
   double max = 10.0;
@@ -166,17 +170,6 @@ int main (int argc, char *argv[])
   Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Bounds", StringValue ("0|200|0|200"));
 */
   
-  CommandLine cmd;
-  cmd.AddValue ("phyMode", "Wifi Phy mode", phyMode);
-  //cmd.AddValue ("rss", "received signal strength", rss);
-  cmd.AddValue ("packetSize", "size of application packet sent", packetSize);
-  cmd.AddValue ("numPackets", "number of packets generated", numPackets);
-  cmd.AddValue ("interval", "interval (seconds) between packets", interval);
-  cmd.AddValue ("verbose", "turn on all WifiNetDevice log components", verbose);
-  cmd.AddValue ("numNodes", "number of nodes", numNodes);
-  cmd.AddValue ("sinkNode", "Receiver node number", sinkNode);
-  cmd.AddValue ("sourceNode", "Sender node number", sourceNode);
-  cmd.Parse (argc, argv);
   // Convert to time object
   Time interPacketInterval = Seconds (interval);
 
@@ -184,8 +177,8 @@ int main (int argc, char *argv[])
   Config::SetDefault ("ns3::WifiRemoteStationManager::NonUnicastMode",
                       StringValue (phyMode));
 
-  NS_LOG_UNCOND ("Seed: " << seednr );
-  NS_LOG_UNCOND ("Run: " << runnr );
+  NS_LOG_UNCOND ("Seed: " << seed );
+  NS_LOG_UNCOND ("Run: " << runNumber );
   NS_LOG_UNCOND ("random num: " << randgen );
   NS_LOG_UNCOND ("random num: " << randgen2 );
   
