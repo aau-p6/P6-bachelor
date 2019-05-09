@@ -173,6 +173,7 @@ int main (int argc, char *argv[])
   cmd.AddValue ("numNodes", "number of nodes", numNodes);
   cmd.AddValue ("sinkNode", "Receiver node number", sinkNode);
   cmd.AddValue ("sourceNode", "Sender node number", sourceNode);
+  //cmd.AddValue ("protocol", "Chosen routing protocol", protocol);
   cmd.Parse (argc, argv);
   // Convert to time object
   Time interPacketInterval = Seconds (interval);
@@ -275,7 +276,7 @@ int main (int argc, char *argv[])
   GWmobility.SetMobilityModel ("ns3::ConstantPositionMobilityModel");
   GWmobility.Install (GW);*/
   setupMobilityModel model;
-  model.installModel(c, GW, seed, run);
+  model.installModel(c, GW);
 
   OlsrHelper olsr;
   AodvHelper aodv;
@@ -295,14 +296,14 @@ int main (int argc, char *argv[])
     list.Add (aodv, 10);
     internet.SetRoutingHelper (list);
     internet.Install (cGW);
-    olsr.AssignStreams(cGW, 5);
+    aodv.AssignStreams(cGW, 5);
   }
   else if (protocol == "olsr")
   {
-    list.Add (aodv, 10);
+    list.Add (olsr, 10);
     internet.SetRoutingHelper (list);
     internet.Install (cGW);
-    aodv.AssignStreams(cGW, 5);
+    olsr.AssignStreams(cGW, 5);
   }
   else if (protocol == "dsdv")
   {
