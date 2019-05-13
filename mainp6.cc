@@ -28,10 +28,23 @@
 #include "ns3/random-variable-stream.h"
 #include "ns3/rng-seed-manager.h"
 #include "ns3/flow-monitor-helper.h"
+#include <ctime>
+#include <iomanip>
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("mainp6");
+
+
+int GTC = 0;
+int MaxChildren = 0;
+int Run_number;
+uint32_t numNodes;
+uint32_t numPacketChildren;
+std::vector<Ptr<Socket>> VectorSource;
+float min_packetinterval = 0.5;
+int max_packetinterval = 2;
+
 
 
 void ReceivePacket (Ptr<Socket> socket)
@@ -42,19 +55,72 @@ void ReceivePacket (Ptr<Socket> socket)
     }
 }
 
-static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
-                             uint32_t pktCount, Time pktInterval )
+double Randomnummer(){
+  
+  double min_random_interval = 0.0;
+  // the -1 is due numNodes-1 is the maount of nodes that may send. The *10 is in order to get the resolution used for intervals up to 1 decimal i.e 1.1, 1.2, 1.3, and so on
+  double max_random_interval = static_cast<double>((numNodes-1)*10);    
+  Ptr<UniformRandomVariable> x = CreateObject<UniformRandomVariable> ();
+  x->SetAttribute ("Min", DoubleValue (min_random_interval));
+  x->SetAttribute ("Max", DoubleValue (max_random_interval));
+  double randgen = x->GetValue ();
+  return randgen;
+}
+
+static void GenerateTrafficChild (Ptr<Socket> socket, uint32_t pktSize,
+                             int pktCount, Time pktInterval)
 {
-  NS_LOG_INFO ("Packets to send: " << pktCount);
-  if (pktCount > 0)
-    {
+    if(pktCount > 0){
+      //Due to the increased resolution of the randomnummer we use modulus the size of vector to ensure no out of bounds
+      int v = static_cast<int>(Randomnummer()) % static_cast<int>(VectorSource.size()) ;
+    
+      //NS_LOG_UNCOND(socket->GetNode()->GetId());
+      socket = VectorSource[v];
+      double Tid = (static_cast<int>(round(Randomnummer())) % (max_packetinterval*10))/10.0 + min_packetinterval;
+      Time interPacketInterval = Seconds (Tid);
+    
+      pktInterval = interPacketInterval;
       socket->Send (Create<Packet> (pktSize));
+      Simulator::Schedule (pktInterval, &GenerateTrafficChild,
+                           socket, pktSize,pktCount - 1, pktInterval);
+      
+      NS_LOG_UNCOND ("Sending one packet!");
+    }
+  else
+    { 
+      socket->Close ();
+    }
+}
+
+
+static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
+                             int pktCount, Time pktInterval)
+{
+
+    if(pktCount > 0){
+      //Due to the increased resolution of the randomnummer we use modulus the size of vector to ensure no out of bounds
+      int v = static_cast<int>(Randomnummer()) % static_cast<int>(VectorSource.size()) ;
+      socket = VectorSource[v];
+      double Tid = (static_cast<int>(round(Randomnummer())) %(max_packetinterval*10))/10.0 + min_packetinterval;
+      NS_LOG_UNCOND(Tid);
+      Time interPacketInterval = Seconds (Tid);
+      socket->Send (Create<Packet> (pktSize));
+      std::string info = "We still goin stronk  " + std::to_string(pktCount);
+      NS_LOG_UNCOND ("Sending one packet!");
+      //double Tid =(rand() % 15 + 5)/10;
+      
+      pktInterval = interPacketInterval;
       Simulator::Schedule (pktInterval, &GenerateTraffic,
                            socket, pktSize,pktCount - 1, pktInterval);
+      if (GTC < MaxChildren){
+          GTC ++;
+        Simulator::Schedule (pktInterval, &GenerateTrafficChild,
+                           socket, pktSize, numPacketChildren, pktInterval);
+        NS_LOG_UNCOND ("Spawner et nyt monster");
+      }
     }
   else
     {
-      NS_LOG_INFO ("Socket close.");
       socket->Close ();
     }
 }
@@ -65,18 +131,19 @@ int main (int argc, char *argv[])
   std::string phyMode ("DsssRate1Mbps");
   std::string protocol = "olsr";
   uint32_t packetSize = 1000; // bytes
-  uint32_t numPackets = 10;
-  uint32_t sinkNode = 5;
-  uint32_t sourceNode = 0;
-  uint32_t numNodes = 30;
+  uint32_t numPackets = 20;
+  numPacketChildren = numPackets;
+  uint32_t sinkNode = 0;
+  uint32_t sourceNode = 1;
+  numNodes = 30;
+  double interval = 4.0; // seconds mellem hver pakke sendes
   uint32_t numGW = 1;
-  double interval = 1.0; // seconds
   bool verbose = false;
   bool tracing = true;
   int nodeSpeed = 20;
   int nodePause = 0;
   uint32_t step =100;
-  unsigned int seed = 19472;
+  unsigned int seed = 1234;
   unsigned int runNumber = 1;
   
 
@@ -239,16 +306,21 @@ int main (int argc, char *argv[])
 
   TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
 
-  Ptr<Socket> source = Socket::CreateSocket (cGW.Get (1), tid);
-  InetSocketAddress remote = InetSocketAddress (Ipv4Int.GetAddress (0, 0), 80);
-  source->Connect (remote);
-  
-  Simulator::ScheduleWithContext (source->GetNode ()->GetId (),
-                                  Seconds (10.0), &GenerateTraffic,
+  for (uint32_t v = 1; v < numNodes; v++){
+    Ptr<Socket> SamletSource = Socket::CreateSocket (c.Get (v), tid);
+    InetSocketAddress remote = InetSocketAddress (Ipv4Int.GetAddress (0, 0), 80);
+    SamletSource->Connect (remote);
+
+    VectorSource.push_back(SamletSource);
+  }
+
+    Ptr<Socket> source = VectorSource[sourceNode];
+    Simulator::ScheduleWithContext (source->GetNode ()->GetId (),
+                                  Seconds (5.0), &GenerateTraffic,
                                   source, packetSize, numPackets, interPacketInterval);
 
 
-  if (tracing == true)
+    if (tracing == true)
     {
       AsciiTraceHelper ascii;
       wifiPhy.EnableAsciiAll (ascii.CreateFileStream ("wifi-simple-adhoc-grid.tr"));
