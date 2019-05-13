@@ -52,6 +52,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <string>
 #include "ns3/command-line.h"
 #include "ns3/config.h"
 #include "ns3/double.h"
@@ -67,6 +68,7 @@
 #include "ns3/aodv-module.h"
 #include "ns3/olsr-module.h"
 #include "ns3/dsdv-module.h"
+#include "ns3/dsr-module.h"
 #include "ns3/applications-module.h"
 #include "ns3/pointer.h"
 #include "ns3/olsr-helper.h"
@@ -78,7 +80,6 @@
 #include "ns3/random-variable-stream.h"
 #include "ns3/rng-seed-manager.h"
 #include "ns3/flow-monitor-helper.h"
-
 
 using namespace ns3;
 
@@ -105,6 +106,7 @@ void ReceivePacket (Ptr<Socket> socket)
 static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
                              uint32_t pktCount, Time pktInterval )
 {
+  NS_LOG_UNCOND ("Pacets to send: " << pktCount);
   if (pktCount > 0)
     {
       socket->Send (Create<Packet> (pktSize));
@@ -113,6 +115,7 @@ static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
     }
   else
     {
+      NS_LOG_UNCOND ("Socket close.");
       socket->Close ();
     }
 }
@@ -125,7 +128,7 @@ int main (int argc, char *argv[])
   uint32_t numPackets = 10;
   uint32_t sinkNode = 5;
   uint32_t sourceNode = 0;
-  uint32_t numNodes = 15;
+  uint32_t numNodes = 30;
   uint32_t numGW = 1;
   double interval = 1.0; // seconds
   bool verbose = false;
@@ -133,8 +136,9 @@ int main (int argc, char *argv[])
   int nodeSpeed = 20;
   int nodePause = 0;
   uint32_t step =100;
-  unsigned int seed = 1234;
-  unsigned int runNumber = 2;
+  unsigned int seed = 19472;
+  unsigned int runNumber = 1;
+  std::string protocol = "olsr";
 
   CommandLine cmd;
   cmd.AddValue ("phyMode", "Wifi Phy mode", phyMode);
@@ -162,8 +166,8 @@ int main (int argc, char *argv[])
   //
   //     [min, max)  .
   //
-  double randgen = x->GetValue ();
-  double randgen2 = x->GetValue ();
+  //double randgen = x->GetValue ();
+  //double randgen2 = x->GetValue ();
   
   /*Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Mode", StringValue ("Time"));
   Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Time", StringValue ("2s"));
@@ -180,8 +184,8 @@ int main (int argc, char *argv[])
 
   NS_LOG_UNCOND ("Seed: " << seed );
   NS_LOG_UNCOND ("Run: " << runNumber );
-  NS_LOG_UNCOND ("random num: " << randgen );
-  NS_LOG_UNCOND ("random num: " << randgen2 );
+  //NS_LOG_UNCOND ("random num: " << randgen );
+  //NS_LOG_UNCOND ("random num: " << randgen2 );
   
   NodeContainer c;
   c.Create (numNodes);
@@ -226,19 +230,7 @@ int main (int argc, char *argv[])
   // used for received signal strength.
   MobilityHelper mobility;
   int64_t streamIndex = 0;
-/*  mobility.SetPositionAllocator ("ns3::RandomDiscPositionAllocator",
-                                 "X", StringValue ("100.0"),
-                                 "Y", StringValue ("100.0"),
-                                 "Rho", StringValue ("ns3::UniformRandomVariable[Min=0|Max=100]"));
-  mobility.SetMobilityModel ("ns3::RandomWalk2dMobilityModel",
-                             "Mode", StringValue ("Time"),
-                             "Time", StringValue ("5s"),
-                             "Speed", StringValue ("ns3::ConstantRandomVariable[Constant=1.0]"),
-                             "Bounds", StringValue ("0|200|0|200"));
-  mobility.InstallAll ();
-  */
-  //Config::Connect ("/NodeList/*/$ns3::MobilityModel/CourseChange",
-  //                 MakeCallback (&CourseChange));
+  
 
   ObjectFactory pos;
   pos.SetTypeId ("ns3::RandomRectanglePositionAllocator");
@@ -274,44 +266,79 @@ int main (int argc, char *argv[])
   
   
   OlsrHelper olsr;
-  //AodvHelper olsr;
-  //Ipv4StaticRoutingHelper staticRouting;
-  
+  AodvHelper aodv;
+  DsdvHelper dsdv;
+  DsrHelper dsr; // drs routing modul does not support flow monitor (require Ipv4 or Ipv6)
+  DsrMainHelper dsrMain;
   Ipv4ListRoutingHelper list;
-  //list.Add (staticRouting, 0);
-  list.Add (olsr, 10);
-                  
   InternetStackHelper internet;
-  internet.SetRoutingHelper (list); // has effect on the next Install ()
-  internet.Install (cGW);
+  
+  if (protocol == "dsr")
+  {
+    internet.Install (cGW);
+    dsrMain.Install (dsr, cGW);
+  }
+  else if (protocol == "aodv")
+  {
+    list.Add (aodv, 10);
+    internet.SetRoutingHelper (list);
+    internet.Install (cGW);
+    aodv.AssignStreams(cGW, 5);
+  }
+  else if (protocol == "olsr")
+  {
+    list.Add (olsr, 10);
+    internet.SetRoutingHelper (list);
+    internet.Install (cGW);
+    olsr.AssignStreams(cGW, 5);
+  }
+  else if (protocol == "dsdv")
+  {
+    list.Add (dsdv, 10);
+    internet.SetRoutingHelper (list);
+    internet.Install (cGW);
+    //dsdv.AssignStreams(cGW, 5);
+  }
+  else
+  {
+    NS_FATAL_ERROR ("No such protocol:" << protocol);
+  }
 
   Ipv4AddressHelper ipv4;
   NS_LOG_INFO ("Assign IP Addresses.");
   ipv4.SetBase ("10.1.1.0", "255.255.255.0");
-  Ipv4InterfaceContainer i = ipv4.Assign (devices);
+  Ipv4InterfaceContainer Ipv4Int = ipv4.Assign (devices);
+
+
+  /************* USE SIMULATOR TO SCHEDULE A EVENT ***************************/
 
   TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-  Ptr<Socket> recvSink = Socket::CreateSocket (GW.Get (0), tid);
-  InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 80);
-  recvSink->Bind (local);
-  recvSink->SetRecvCallback (MakeCallback (&ReceivePacket));
+  //Ptr<Socket> recvSink = Socket::CreateSocket (cGW.Get (0), tid);
+  //InetSocketAddress local = InetSocketAddress (i.GetAddress (1, 0), 80);
+  //recvSink->Bind (local);
+  //recvSink->SetRecvCallback (MakeCallback (&ReceivePacket));
 
-  Ptr<Socket> source = Socket::CreateSocket (c.Get (1), tid);
-  InetSocketAddress remote = InetSocketAddress (i.GetAddress (sinkNode, 0), 80);
+  Ptr<Socket> source = Socket::CreateSocket (cGW.Get (1), tid);
+  InetSocketAddress remote = InetSocketAddress (Ipv4Int.GetAddress (0, 0), 80);
   //InetSocketAddress remote = InetSocketAddress (Ipv4Address ("255.255.255.255"), 80);
-  //source->SetAllowBroadcast (true);
+  //source->SetAllowBroadcast (false);
   source->Connect (remote);
   
+  Simulator::ScheduleWithContext (source->GetNode ()->GetId (),
+                                  Seconds (10.0), &GenerateTraffic,
+                                  source, packetSize, numPackets, interPacketInterval);
+
+
   if (tracing == true)
     {
       AsciiTraceHelper ascii;
       wifiPhy.EnableAsciiAll (ascii.CreateFileStream ("wifi-simple-adhoc-grid.tr"));
       wifiPhy.EnablePcap ("wifi-simple-adhoc-grid", devices);
       // Trace routing tables
-      Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("wifi-simple-adhoc-grid.routes", std::ios::out);
-      olsr.PrintRoutingTableAllEvery (Seconds (2), routingStream);
-      Ptr<OutputStreamWrapper> neighborStream = Create<OutputStreamWrapper> ("wifi-simple-adhoc-grid.neighbors", std::ios::out);
-      olsr.PrintNeighborCacheAllEvery (Seconds (2), neighborStream);
+      //Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("wifi-simple-adhoc-grid.routes", std::ios::out);
+      //olsr.PrintRoutingTableAllEvery (Seconds (2), routingStream);
+      //Ptr<OutputStreamWrapper> neighborStream = Create<OutputStreamWrapper> ("wifi-simple-adhoc-grid.neighbors", std::ios::out);
+      //olsr.PrintNeighborCacheAllEvery (Seconds (2), neighborStream);
 
       // To do-- enable an IP-level trace that shows forwarding events only
     }
@@ -320,22 +347,22 @@ int main (int argc, char *argv[])
   //wifiPhy.EnablePcap ("wifi-simple-adhoc", devices);
   
   // Give OLSR time to converge-- 30 seconds perhaps
-  Simulator::Schedule (Seconds (30.0), &GenerateTraffic,
-                       source, packetSize, numPackets, interPacketInterval);
+  //Simulator::Schedule (Seconds (30.0), &GenerateTraffic,
+  //                     source, packetSize, numPackets, interPacketInterval);
 
   // Output what we are doing
   NS_LOG_UNCOND ("Testing " << numPackets  );//<< " packets sent with receiver rss " << rss );
 
-  Simulator::ScheduleWithContext (source->GetNode ()->GetId (),
+  /*Simulator::ScheduleWithContext (source->GetNode ()->GetId (),
                                   Seconds (10.0), &GenerateTraffic,
-                                  source, packetSize, numPackets, interPacketInterval);
+                                  source, packetSize, numPackets, interPacketInterval);*/
   AnimationInterface anim ("adhocTest.xml"); // where "animation.xml" is any arbitrary
   
   Ptr<FlowMonitor> flowMonitor;
   FlowMonitorHelper flowHelper;
   flowMonitor = flowHelper.InstallAll();
 
-  Simulator::Stop (Seconds (60.0));
+  Simulator::Stop (Seconds (30.0));
 
   Simulator::Run ();
   flowMonitor->SerializeToXmlFile("flowmonitor.xml", true, true);
