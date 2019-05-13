@@ -306,6 +306,12 @@ int main (int argc, char *argv[])
 
   TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
 
+  Ptr<Socket> recvSink = Socket::CreateSocket (c.Get (sinkNode), tid);
+  InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 80);
+  recvSink->Bind (local);
+  recvSink->SetRecvCallback (MakeCallback (&ReceivePacket));
+
+
   for (uint32_t v = 1; v < numNodes; v++){
     Ptr<Socket> SamletSource = Socket::CreateSocket (c.Get (v), tid);
     InetSocketAddress remote = InetSocketAddress (Ipv4Int.GetAddress (0, 0), 80);
