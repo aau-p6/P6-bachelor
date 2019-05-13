@@ -83,7 +83,8 @@
 
 using namespace ns3;
 
-NS_LOG_COMPONENT_DEFINE ("WifiSimpleAdhoc");
+NS_LOG_COMPONENT_DEFINE ("mainp6");
+
 
 /*static void 
 CourseChange (std::string foo, Ptr<const MobilityModel> mobility)
@@ -106,7 +107,7 @@ void ReceivePacket (Ptr<Socket> socket)
 static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
                              uint32_t pktCount, Time pktInterval )
 {
-  NS_LOG_UNCOND ("Pacets to send: " << pktCount);
+  NS_LOG_INFO ("Packets to send: " << pktCount);
   if (pktCount > 0)
     {
       socket->Send (Create<Packet> (pktSize));
@@ -115,14 +116,16 @@ static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
     }
   else
     {
-      NS_LOG_UNCOND ("Socket close.");
+      NS_LOG_INFO ("Socket close.");
       socket->Close ();
     }
 }
 
 int main (int argc, char *argv[])
 {
+  LogComponentEnable("mainp6", LOG_LEVEL_INFO);
   std::string phyMode ("DsssRate1Mbps");
+  std::string protocol = "olsr";
   //double rss = -90;  // -dBm
   uint32_t packetSize = 1000; // bytes
   uint32_t numPackets = 10;
@@ -138,11 +141,11 @@ int main (int argc, char *argv[])
   uint32_t step =100;
   unsigned int seed = 19472;
   unsigned int runNumber = 1;
-  std::string protocol = "olsr";
+  
 
   CommandLine cmd;
   cmd.AddValue ("phyMode", "Wifi Phy mode", phyMode);
-  //cmd.AddValue ("rss", "received signal strength", rss);
+  cmd.AddValue ("protocol", "Pick routing protocol", protocol);
   cmd.AddValue ("packetSize", "size of application packet sent", packetSize);
   cmd.AddValue ("numPackets", "number of packets generated", numPackets);
   cmd.AddValue ("interval", "interval (seconds) between packets", interval);
@@ -182,8 +185,8 @@ int main (int argc, char *argv[])
   Config::SetDefault ("ns3::WifiRemoteStationManager::NonUnicastMode",
                       StringValue (phyMode));
 
-  NS_LOG_UNCOND ("Seed: " << seed );
-  NS_LOG_UNCOND ("Run: " << runNumber );
+  NS_LOG_INFO ("Seed: " << seed );
+  NS_LOG_INFO ("Run: " << runNumber );
   //NS_LOG_UNCOND ("random num: " << randgen );
   //NS_LOG_UNCOND ("random num: " << randgen2 );
   
@@ -351,7 +354,7 @@ int main (int argc, char *argv[])
   //                     source, packetSize, numPackets, interPacketInterval);
 
   // Output what we are doing
-  NS_LOG_UNCOND ("Testing " << numPackets  );//<< " packets sent with receiver rss " << rss );
+  NS_LOG_INFO ("Testing " << numPackets  );//<< " packets sent with receiver rss " << rss );
 
   /*Simulator::ScheduleWithContext (source->GetNode ()->GetId (),
                                   Seconds (10.0), &GenerateTraffic,
