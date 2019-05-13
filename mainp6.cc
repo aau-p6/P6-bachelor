@@ -1,55 +1,3 @@
-/* -*-  Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/*
- * Copyright (c) 2009 The Boeing Company
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation;
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- */
-
-// This script configures two nodes on an 802.11b physical layer, with
-// 802.11b NICs in adhoc mode, and by default, sends one packet of 1000
-// (application) bytes to the other node.  The physical layer is configured
-// to receive at a fixed RSS (regardless of the distance and transmit
-// power); therefore, changing position of the nodes has no effect.
-//
-// There are a number of command-line options available to control
-// the default behavior.  The list of available command-line options
-// can be listed with the following command:
-// ./waf --run "wifi-simple-adhoc --help"
-//
-// For instance, for this configuration, the physical layer will
-// stop successfully receiving packets when rss drops below -97 dBm.
-// To see this effect, try running:
-//
-// ./waf --run "wifi-simple-adhoc --rss=-97 --numPackets=20"
-// ./waf --run "wifi-simple-adhoc --rss=-98 --numPackets=20"
-// ./waf --run "wifi-simple-adhoc --rss=-99 --numPackets=20"
-//
-// Note that all ns-3 attributes (not just the ones exposed in the below
-// script) can be changed at command line; see the documentation.
-//
-// This script can also be helpful to put the Wifi layer into verbose
-// logging mode; this command will turn on all wifi logging:
-//
-// ./waf --run "wifi-simple-adhoc --verbose=1"
-//
-// When you are done, you will notice two pcap trace files in your directory.
-// If you have tcpdump installed, you can try this:
-//
-// tcpdump -r wifi-simple-adhoc-0-0.pcap -nn -tt
-//
-
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -86,16 +34,6 @@ using namespace ns3;
 NS_LOG_COMPONENT_DEFINE ("mainp6");
 
 
-/*static void 
-CourseChange (std::string foo, Ptr<const MobilityModel> mobility)
-{
-  Vector pos = mobility->GetPosition ();
-  Vector vel = mobility->GetVelocity ();
-  std::cout << Simulator::Now () << ", model=" << mobility << ", POS: x=" << pos.x << ", y=" << pos.y
-            << ", z=" << pos.z << "; VEL:" << vel.x << ", y=" << vel.y
-            << ", z=" << vel.z << std::endl;
-}*/
-
 void ReceivePacket (Ptr<Socket> socket)
 {
   while (socket->Recv ())
@@ -126,7 +64,6 @@ int main (int argc, char *argv[])
   LogComponentEnable("mainp6", LOG_LEVEL_INFO);
   std::string phyMode ("DsssRate1Mbps");
   std::string protocol = "olsr";
-  //double rss = -90;  // -dBm
   uint32_t packetSize = 1000; // bytes
   uint32_t numPackets = 10;
   uint32_t sinkNode = 5;
@@ -164,19 +101,6 @@ int main (int argc, char *argv[])
   Ptr<UniformRandomVariable> x = CreateObject<UniformRandomVariable> ();
   x->SetAttribute ("Min", DoubleValue (min));
   x->SetAttribute ("Max", DoubleValue (max));
-  // The values returned by a uniformly distributed random
-  // variable should always be within the range
-  //
-  //     [min, max)  .
-  //
-  //double randgen = x->GetValue ();
-  //double randgen2 = x->GetValue ();
-  
-  /*Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Mode", StringValue ("Time"));
-  Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Time", StringValue ("2s"));
-  Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Speed", StringValue ("ns3::ConstantRandomVariable[Constant=1.0]"));
-  Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Bounds", StringValue ("0|200|0|200"));
-*/
   
   // Convert to time object
   Time interPacketInterval = Seconds (interval);
@@ -187,8 +111,6 @@ int main (int argc, char *argv[])
 
   NS_LOG_INFO ("Seed: " << seed );
   NS_LOG_INFO ("Run: " << runNumber );
-  //NS_LOG_UNCOND ("random num: " << randgen );
-  //NS_LOG_UNCOND ("random num: " << randgen2 );
   
   NodeContainer c;
   c.Create (numNodes);
@@ -316,15 +238,9 @@ int main (int argc, char *argv[])
   /************* USE SIMULATOR TO SCHEDULE A EVENT ***************************/
 
   TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-  //Ptr<Socket> recvSink = Socket::CreateSocket (cGW.Get (0), tid);
-  //InetSocketAddress local = InetSocketAddress (i.GetAddress (1, 0), 80);
-  //recvSink->Bind (local);
-  //recvSink->SetRecvCallback (MakeCallback (&ReceivePacket));
 
   Ptr<Socket> source = Socket::CreateSocket (cGW.Get (1), tid);
   InetSocketAddress remote = InetSocketAddress (Ipv4Int.GetAddress (0, 0), 80);
-  //InetSocketAddress remote = InetSocketAddress (Ipv4Address ("255.255.255.255"), 80);
-  //source->SetAllowBroadcast (false);
   source->Connect (remote);
   
   Simulator::ScheduleWithContext (source->GetNode ()->GetId (),
@@ -337,28 +253,13 @@ int main (int argc, char *argv[])
       AsciiTraceHelper ascii;
       wifiPhy.EnableAsciiAll (ascii.CreateFileStream ("wifi-simple-adhoc-grid.tr"));
       wifiPhy.EnablePcap ("wifi-simple-adhoc-grid", devices);
-      // Trace routing tables
-      //Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("wifi-simple-adhoc-grid.routes", std::ios::out);
-      //olsr.PrintRoutingTableAllEvery (Seconds (2), routingStream);
-      //Ptr<OutputStreamWrapper> neighborStream = Create<OutputStreamWrapper> ("wifi-simple-adhoc-grid.neighbors", std::ios::out);
-      //olsr.PrintNeighborCacheAllEvery (Seconds (2), neighborStream);
-
-      // To do-- enable an IP-level trace that shows forwarding events only
     }
 
-  // Tracing
-  //wifiPhy.EnablePcap ("wifi-simple-adhoc", devices);
   
-  // Give OLSR time to converge-- 30 seconds perhaps
-  //Simulator::Schedule (Seconds (30.0), &GenerateTraffic,
-  //                     source, packetSize, numPackets, interPacketInterval);
 
   // Output what we are doing
-  NS_LOG_INFO ("Testing " << numPackets  );//<< " packets sent with receiver rss " << rss );
+  NS_LOG_INFO ("Testing " << numPackets  ); 
 
-  /*Simulator::ScheduleWithContext (source->GetNode ()->GetId (),
-                                  Seconds (10.0), &GenerateTraffic,
-                                  source, packetSize, numPackets, interPacketInterval);*/
   AnimationInterface anim ("adhocTest.xml"); // where "animation.xml" is any arbitrary
   
   Ptr<FlowMonitor> flowMonitor;
