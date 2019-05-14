@@ -145,6 +145,7 @@ int main (int argc, char *argv[])
   uint32_t step =100;
   unsigned int seed = 1234;
   unsigned int runNumber = 1;
+  double TxPower = -3.5;
   
 
   CommandLine cmd;
@@ -180,7 +181,7 @@ int main (int argc, char *argv[])
   NS_LOG_INFO ("Run: " << runNumber );
   
   NodeContainer c;
-  c.Create (numNodes);
+  c.Create (numNodes-1);
   NodeContainer GW;
   GW.Create (numGW);
   NodeContainer cGW = NodeContainer (GW.Get(0));
@@ -197,7 +198,9 @@ int main (int argc, char *argv[])
   YansWifiPhyHelper wifiPhy =  YansWifiPhyHelper::Default ();
   // This is one parameter that matters when using FixedRssLossModel
   // set it to zero; otherwise, gain will be added
-  wifiPhy.Set ("RxGain", DoubleValue (-10) );
+  //wifiPhy.Set ("RxGain", DoubleValue (-10) );
+  wifiPhy.Set ("TxPowerStart", DoubleValue (TxPower) );
+  wifiPhy.Set ("TxPowerEnd", DoubleValue (TxPower) );
   // ns-3 supports RadioTap and Prism tracing extensions for 802.11b
   wifiPhy.SetPcapDataLinkType (WifiPhyHelper::DLT_IEEE802_11_RADIO);
 
@@ -306,15 +309,15 @@ int main (int argc, char *argv[])
 
   TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
 
-  Ptr<Socket> recvSink = Socket::CreateSocket (c.Get (sinkNode), tid);
+  Ptr<Socket> recvSink = Socket::CreateSocket (cGW.Get (sinkNode), tid);
   InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 80);
   recvSink->Bind (local);
   recvSink->SetRecvCallback (MakeCallback (&ReceivePacket));
 
 
   for (uint32_t v = 1; v < numNodes; v++){
-    Ptr<Socket> SamletSource = Socket::CreateSocket (c.Get (v), tid);
-    InetSocketAddress remote = InetSocketAddress (Ipv4Int.GetAddress (0, 0), 80);
+    Ptr<Socket> SamletSource = Socket::CreateSocket (cGW.Get (v), tid);
+    InetSocketAddress remote = InetSocketAddress (Ipv4Int.GetAddress (sinkNode, 0), 80);
     SamletSource->Connect (remote);
 
     VectorSource.push_back(SamletSource);
