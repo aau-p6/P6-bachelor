@@ -125,6 +125,27 @@ static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
     }
 }
 
+static void SavePosition(NodeContainer container, int saveInterval)
+{
+  std::ofstream myfile;
+  std::string filename = "p6Position" + std::to_string((int) Simulator::Now().GetSeconds()) + ".txt";
+  myfile.open(filename);
+  //myfile << Simulator::Now() << std::endl;
+  for (NodeContainer::Iterator j = container.Begin ();
+       j != container.End (); ++j)
+      {
+        Ptr<Node> object = *j;
+        Ptr<MobilityModel> position = object->GetObject<MobilityModel> ();
+        NS_ASSERT (position != 0);
+        Vector pos = position->GetPosition ();
+        std::cout << "node=" << object->GetId() <<", x=" << pos.x << ", y=" << pos.y << ", z=" << pos.z << std::endl;
+        //myfile << "node=" << object->GetId() <<", x=" << pos.x << ", y=" << pos.y << std::endl;
+        myfile << object->GetId() <<"," << pos.x << "," << pos.y << std::endl;
+      }
+  myfile.close();
+  Simulator::Schedule (Seconds (saveInterval), &SavePosition, container, saveInterval);
+}
+
 int main (int argc, char *argv[])
 {
   LogComponentEnable("mainp6", LOG_LEVEL_INFO);
@@ -180,12 +201,13 @@ int main (int argc, char *argv[])
   NS_LOG_INFO ("Seed: " << seed );
   NS_LOG_INFO ("Run: " << runNumber );
   
-  NodeContainer c;
-  c.Create (numNodes-1);
   NodeContainer GW;
   GW.Create (numGW);
-  NodeContainer cGW = NodeContainer (GW.Get(0));
-  cGW.Add(c);
+  NodeContainer c;
+  c.Create (numNodes-1);
+  NodeContainer cGW;
+  cGW.Add (GW.Get(0));
+  cGW.Add (c);
 
   // The below set of helpers will help us to put together the wifi NICs we want
   WifiHelper wifi;
@@ -334,6 +356,8 @@ int main (int argc, char *argv[])
       AsciiTraceHelper ascii;
       wifiPhy.EnableAsciiAll (ascii.CreateFileStream ("wifi-simple-adhoc-grid.tr"));
       wifiPhy.EnablePcap ("wifi-simple-adhoc-grid", devices);
+      //mobility.EnableAsciiAll(ascii.CreateFileStream ("p6-position.txt"));
+      Simulator::Schedule (Seconds (0), &SavePosition, cGW, 10);
     }
 
   
