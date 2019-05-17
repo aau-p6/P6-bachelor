@@ -1,55 +1,3 @@
-/* -*-  Mode: C++; c-file-style: "gnu"; indent-tabs-mode:nil; -*- */
-/*
- * Copyright (c) 2009 The Boeing Company
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation;
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- */
-
-// This script configures two nodes on an 802.11b physical layer, with
-// 802.11b NICs in adhoc mode, and by default, sends one packet of 1000
-// (application) bytes to the other node.  The physical layer is configured
-// to receive at a fixed RSS (regardless of the distance and transmit
-// power); therefore, changing position of the nodes has no effect.
-//
-// There are a number of command-line options available to control
-// the default behavior.  The list of available command-line options
-// can be listed with the following command:
-// ./waf --run "wifi-simple-adhoc --help"
-//
-// For instance, for this configuration, the physical layer will
-// stop successfully receiving packets when rss drops below -97 dBm.
-// To see this effect, try running:
-//
-// ./waf --run "wifi-simple-adhoc --rss=-97 --numPackets=20"
-// ./waf --run "wifi-simple-adhoc --rss=-98 --numPackets=20"
-// ./waf --run "wifi-simple-adhoc --rss=-99 --numPackets=20"
-//
-// Note that all ns-3 attributes (not just the ones exposed in the below
-// script) can be changed at command line; see the documentation.
-//
-// This script can also be helpful to put the Wifi layer into verbose
-// logging mode; this command will turn on all wifi logging:
-//
-// ./waf --run "wifi-simple-adhoc --verbose=1"
-//
-// When you are done, you will notice two pcap trace files in your directory.
-// If you have tcpdump installed, you can try this:
-//
-// tcpdump -r wifi-simple-adhoc-0-0.pcap -nn -tt
-//
-
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -80,21 +28,24 @@
 #include "ns3/random-variable-stream.h"
 #include "ns3/rng-seed-manager.h"
 #include "ns3/flow-monitor-helper.h"
+#include <ctime>
+#include <iomanip>
 
 using namespace ns3;
 
 NS_LOG_COMPONENT_DEFINE ("mainp6");
 
 
-/*static void 
-CourseChange (std::string foo, Ptr<const MobilityModel> mobility)
-{
-  Vector pos = mobility->GetPosition ();
-  Vector vel = mobility->GetVelocity ();
-  std::cout << Simulator::Now () << ", model=" << mobility << ", POS: x=" << pos.x << ", y=" << pos.y
-            << ", z=" << pos.z << "; VEL:" << vel.x << ", y=" << vel.y
-            << ", z=" << vel.z << std::endl;
-}*/
+int GTC = 0;
+int MaxChildren = 0;
+int Run_number;
+uint32_t numNodes;
+uint32_t numPacketChildren;
+std::vector<Ptr<Socket>> VectorSource;
+float min_packetinterval = 0.5;
+int max_packetinterval = 2;
+
+
 
 void ReceivePacket (Ptr<Socket> socket)
 {
@@ -104,21 +55,95 @@ void ReceivePacket (Ptr<Socket> socket)
     }
 }
 
-static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
-                             uint32_t pktCount, Time pktInterval )
+double Randomnummer(){
+  
+  double min_random_interval = 0.0;
+  // the -1 is due numNodes-1 is the maount of nodes that may send. The *10 is in order to get the resolution used for intervals up to 1 decimal i.e 1.1, 1.2, 1.3, and so on
+  double max_random_interval = static_cast<double>((numNodes-1)*10);    
+  Ptr<UniformRandomVariable> x = CreateObject<UniformRandomVariable> ();
+  x->SetAttribute ("Min", DoubleValue (min_random_interval));
+  x->SetAttribute ("Max", DoubleValue (max_random_interval));
+  double randgen = x->GetValue ();
+  return randgen;
+}
+
+static void GenerateTrafficChild (Ptr<Socket> socket, uint32_t pktSize,
+                             int pktCount, Time pktInterval)
 {
-  NS_LOG_INFO ("Packets to send: " << pktCount);
-  if (pktCount > 0)
-    {
+    if(pktCount > 0){
+      //Due to the increased resolution of the randomnummer we use modulus the size of vector to ensure no out of bounds
+      int v = static_cast<int>(Randomnummer()) % static_cast<int>(VectorSource.size()) ;
+    
+      //NS_LOG_UNCOND(socket->GetNode()->GetId());
+      socket = VectorSource[v];
+      double Tid = (static_cast<int>(round(Randomnummer())) % (max_packetinterval*10))/10.0 + min_packetinterval;
+      Time interPacketInterval = Seconds (Tid);
+    
+      pktInterval = interPacketInterval;
       socket->Send (Create<Packet> (pktSize));
+      Simulator::Schedule (pktInterval, &GenerateTrafficChild,
+                           socket, pktSize,pktCount - 1, pktInterval);
+      
+      NS_LOG_UNCOND ("Sending one packet!");
+    }
+  else
+    { 
+      socket->Close ();
+    }
+}
+
+
+static void GenerateTraffic (Ptr<Socket> socket, uint32_t pktSize,
+                             int pktCount, Time pktInterval)
+{
+
+    if(pktCount > 0){
+      //Due to the increased resolution of the randomnummer we use modulus the size of vector to ensure no out of bounds
+      int v = static_cast<int>(Randomnummer()) % static_cast<int>(VectorSource.size()) ;
+      socket = VectorSource[v];
+      double Tid = (static_cast<int>(round(Randomnummer())) %(max_packetinterval*10))/10.0 + min_packetinterval;
+      NS_LOG_UNCOND(Tid);
+      Time interPacketInterval = Seconds (Tid);
+      socket->Send (Create<Packet> (pktSize));
+      std::string info = "We still goin stronk  " + std::to_string(pktCount);
+      NS_LOG_UNCOND ("Sending one packet!");
+      //double Tid =(rand() % 15 + 5)/10;
+      
+      pktInterval = interPacketInterval;
       Simulator::Schedule (pktInterval, &GenerateTraffic,
                            socket, pktSize,pktCount - 1, pktInterval);
+      if (GTC < MaxChildren){
+          GTC ++;
+        Simulator::Schedule (pktInterval, &GenerateTrafficChild,
+                           socket, pktSize, numPacketChildren, pktInterval);
+        NS_LOG_UNCOND ("Spawner et nyt monster");
+      }
     }
   else
     {
-      NS_LOG_INFO ("Socket close.");
       socket->Close ();
     }
+}
+
+static void SavePosition(NodeContainer container, int saveInterval)
+{
+  std::ofstream myfile;
+  std::string filename = "p6Position" + std::to_string((int) Simulator::Now().GetSeconds()) + ".txt";
+  myfile.open(filename);
+  //myfile << Simulator::Now() << std::endl;
+  for (NodeContainer::Iterator j = container.Begin ();
+       j != container.End (); ++j)
+      {
+        Ptr<Node> object = *j;
+        Ptr<MobilityModel> position = object->GetObject<MobilityModel> ();
+        NS_ASSERT (position != 0);
+        Vector pos = position->GetPosition ();
+        std::cout << "node=" << object->GetId() <<", x=" << pos.x << ", y=" << pos.y << ", z=" << pos.z << std::endl;
+        //myfile << "node=" << object->GetId() <<", x=" << pos.x << ", y=" << pos.y << std::endl;
+        myfile << object->GetId() <<"," << pos.x << "," << pos.y << std::endl;
+      }
+  myfile.close();
+  Simulator::Schedule (Seconds (saveInterval), &SavePosition, container, saveInterval);
 }
 
 int main (int argc, char *argv[])
@@ -126,21 +151,22 @@ int main (int argc, char *argv[])
   LogComponentEnable("mainp6", LOG_LEVEL_INFO);
   std::string phyMode ("DsssRate1Mbps");
   std::string protocol = "olsr";
-  //double rss = -90;  // -dBm
   uint32_t packetSize = 1000; // bytes
-  uint32_t numPackets = 10;
-  uint32_t sinkNode = 5;
-  uint32_t sourceNode = 0;
-  uint32_t numNodes = 30;
+  uint32_t numPackets = 20;
+  numPacketChildren = numPackets;
+  uint32_t sinkNode = 0;
+  uint32_t sourceNode = 1;
+  numNodes = 30;
+  double interval = 4.0; // seconds mellem hver pakke sendes
   uint32_t numGW = 1;
-  double interval = 1.0; // seconds
   bool verbose = false;
   bool tracing = true;
   int nodeSpeed = 20;
   int nodePause = 0;
   uint32_t step =100;
-  unsigned int seed = 19472;
+  unsigned int seed = 1234;
   unsigned int runNumber = 1;
+  double TxPower = -3.5;
   
 
   CommandLine cmd;
@@ -164,19 +190,6 @@ int main (int argc, char *argv[])
   Ptr<UniformRandomVariable> x = CreateObject<UniformRandomVariable> ();
   x->SetAttribute ("Min", DoubleValue (min));
   x->SetAttribute ("Max", DoubleValue (max));
-  // The values returned by a uniformly distributed random
-  // variable should always be within the range
-  //
-  //     [min, max)  .
-  //
-  //double randgen = x->GetValue ();
-  //double randgen2 = x->GetValue ();
-  
-  /*Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Mode", StringValue ("Time"));
-  Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Time", StringValue ("2s"));
-  Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Speed", StringValue ("ns3::ConstantRandomVariable[Constant=1.0]"));
-  Config::SetDefault ("ns3::RandomWalk2dMobilityModel::Bounds", StringValue ("0|200|0|200"));
-*/
   
   // Convert to time object
   Time interPacketInterval = Seconds (interval);
@@ -187,15 +200,14 @@ int main (int argc, char *argv[])
 
   NS_LOG_INFO ("Seed: " << seed );
   NS_LOG_INFO ("Run: " << runNumber );
-  //NS_LOG_UNCOND ("random num: " << randgen );
-  //NS_LOG_UNCOND ("random num: " << randgen2 );
   
-  NodeContainer c;
-  c.Create (numNodes);
   NodeContainer GW;
   GW.Create (numGW);
-  NodeContainer cGW = NodeContainer (GW.Get(0));
-  cGW.Add(c);
+  NodeContainer c;
+  c.Create (numNodes-1);
+  NodeContainer cGW;
+  cGW.Add (GW.Get(0));
+  cGW.Add (c);
 
   // The below set of helpers will help us to put together the wifi NICs we want
   WifiHelper wifi;
@@ -208,7 +220,9 @@ int main (int argc, char *argv[])
   YansWifiPhyHelper wifiPhy =  YansWifiPhyHelper::Default ();
   // This is one parameter that matters when using FixedRssLossModel
   // set it to zero; otherwise, gain will be added
-  wifiPhy.Set ("RxGain", DoubleValue (-10) );
+  //wifiPhy.Set ("RxGain", DoubleValue (-10) );
+  wifiPhy.Set ("TxPowerStart", DoubleValue (TxPower) );
+  wifiPhy.Set ("TxPowerEnd", DoubleValue (TxPower) );
   // ns-3 supports RadioTap and Prism tracing extensions for 802.11b
   wifiPhy.SetPcapDataLinkType (WifiPhyHelper::DLT_IEEE802_11_RADIO);
 
@@ -316,49 +330,41 @@ int main (int argc, char *argv[])
   /************* USE SIMULATOR TO SCHEDULE A EVENT ***************************/
 
   TypeId tid = TypeId::LookupByName ("ns3::UdpSocketFactory");
-  //Ptr<Socket> recvSink = Socket::CreateSocket (cGW.Get (0), tid);
-  //InetSocketAddress local = InetSocketAddress (i.GetAddress (1, 0), 80);
-  //recvSink->Bind (local);
-  //recvSink->SetRecvCallback (MakeCallback (&ReceivePacket));
 
-  Ptr<Socket> source = Socket::CreateSocket (cGW.Get (1), tid);
-  InetSocketAddress remote = InetSocketAddress (Ipv4Int.GetAddress (0, 0), 80);
-  //InetSocketAddress remote = InetSocketAddress (Ipv4Address ("255.255.255.255"), 80);
-  //source->SetAllowBroadcast (false);
-  source->Connect (remote);
-  
-  Simulator::ScheduleWithContext (source->GetNode ()->GetId (),
-                                  Seconds (10.0), &GenerateTraffic,
+  Ptr<Socket> recvSink = Socket::CreateSocket (cGW.Get (sinkNode), tid);
+  InetSocketAddress local = InetSocketAddress (Ipv4Address::GetAny (), 80);
+  recvSink->Bind (local);
+  recvSink->SetRecvCallback (MakeCallback (&ReceivePacket));
+
+
+  for (uint32_t v = 1; v < numNodes; v++){
+    Ptr<Socket> SamletSource = Socket::CreateSocket (cGW.Get (v), tid);
+    InetSocketAddress remote = InetSocketAddress (Ipv4Int.GetAddress (sinkNode, 0), 80);
+    SamletSource->Connect (remote);
+
+    VectorSource.push_back(SamletSource);
+  }
+
+    Ptr<Socket> source = VectorSource[sourceNode];
+    Simulator::ScheduleWithContext (source->GetNode ()->GetId (),
+                                  Seconds (5.0), &GenerateTraffic,
                                   source, packetSize, numPackets, interPacketInterval);
 
 
-  if (tracing == true)
+    if (tracing == true)
     {
       AsciiTraceHelper ascii;
       wifiPhy.EnableAsciiAll (ascii.CreateFileStream ("wifi-simple-adhoc-grid.tr"));
       wifiPhy.EnablePcap ("wifi-simple-adhoc-grid", devices);
-      // Trace routing tables
-      //Ptr<OutputStreamWrapper> routingStream = Create<OutputStreamWrapper> ("wifi-simple-adhoc-grid.routes", std::ios::out);
-      //olsr.PrintRoutingTableAllEvery (Seconds (2), routingStream);
-      //Ptr<OutputStreamWrapper> neighborStream = Create<OutputStreamWrapper> ("wifi-simple-adhoc-grid.neighbors", std::ios::out);
-      //olsr.PrintNeighborCacheAllEvery (Seconds (2), neighborStream);
-
-      // To do-- enable an IP-level trace that shows forwarding events only
+      //mobility.EnableAsciiAll(ascii.CreateFileStream ("p6-position.txt"));
+      Simulator::Schedule (Seconds (0), &SavePosition, cGW, 10);
     }
 
-  // Tracing
-  //wifiPhy.EnablePcap ("wifi-simple-adhoc", devices);
   
-  // Give OLSR time to converge-- 30 seconds perhaps
-  //Simulator::Schedule (Seconds (30.0), &GenerateTraffic,
-  //                     source, packetSize, numPackets, interPacketInterval);
 
   // Output what we are doing
-  NS_LOG_INFO ("Testing " << numPackets  );//<< " packets sent with receiver rss " << rss );
+  NS_LOG_INFO ("Testing " << numPackets  ); 
 
-  /*Simulator::ScheduleWithContext (source->GetNode ()->GetId (),
-                                  Seconds (10.0), &GenerateTraffic,
-                                  source, packetSize, numPackets, interPacketInterval);*/
   AnimationInterface anim ("adhocTest.xml"); // where "animation.xml" is any arbitrary
   
   Ptr<FlowMonitor> flowMonitor;
